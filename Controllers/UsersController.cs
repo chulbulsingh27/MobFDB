@@ -1,19 +1,16 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Cryptography.KeyDerivation;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MobFDB.Interface;
 using MobFDB.Models;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
 namespace MobFDB.Controllers
 {
-    [Route("api/[controller]")]
+    [Authorize] // Requires authentication for all actions in the controller
     [ApiController]
+    [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
         private readonly IUserRepository _userRepository;
@@ -23,15 +20,18 @@ namespace MobFDB.Controllers
             _userRepository = userRepository;
         }
 
-        // GET: api/Users
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
-            return Ok(await _userRepository.GetUsers());
+            
+            var users = await _userRepository.GetUsers();
+
+            return Ok(users);
         }
 
-        // GET: api/Users/5
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin")] // Requires "Admin" role for accessing this action
         public async Task<ActionResult<User>> GetUser(int id)
         {
             var user = await _userRepository.GetUser(id);
@@ -44,13 +44,15 @@ namespace MobFDB.Controllers
             return user;
         }
 
-        // PUT: api/Users/5
         [HttpPut("{id}")]
         public async Task<IActionResult> PutUser(int id, User user)
         {
-            if (id != user.UserId)
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            // Ensure that the authenticated user can only update their own data
+            if (id != user.UserId || id != int.Parse(userId))
             {
-                return BadRequest();
+                return BadRequest("You can only update your own data.");
             }
 
             try
@@ -72,8 +74,8 @@ namespace MobFDB.Controllers
             return NoContent();
         }
 
-        // POST: api/Users
         [HttpPost]
+        [AllowAnonymous] // This action can be accessed without authentication
         public async Task<ActionResult<User>> PostUser(User user)
         {
             var createdUser = await _userRepository.PostUser(user);
@@ -81,8 +83,8 @@ namespace MobFDB.Controllers
             return CreatedAtAction("GetUser", new { id = createdUser.UserId }, createdUser);
         }
 
-        // DELETE: api/Users/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")] // Requires "Admin" role for accessing this action
         public async Task<IActionResult> DeleteUser(int id)
         {
             await _userRepository.DeleteUser(id);
@@ -91,3 +93,4 @@ namespace MobFDB.Controllers
         }
     }
 }
+
