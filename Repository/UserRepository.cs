@@ -33,23 +33,6 @@ namespace MobFDB.Repository
 
         public async Task<User> PostUser(User user)
         {
-            // Generate a salt
-            byte[] salt = new byte[128 / 8];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(salt);
-            }
-
-            // Hash the password
-            string hashed = Convert.ToBase64String(KeyDerivation.Pbkdf2(
-                password: user.Password,
-                salt: salt,
-                prf: KeyDerivationPrf.HMACSHA1,
-                iterationCount: 10000,
-                numBytesRequested: 256 / 8));
-
-            user.Password = hashed;
-
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 

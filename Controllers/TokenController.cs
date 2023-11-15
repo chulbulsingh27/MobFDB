@@ -35,8 +35,8 @@ namespace MobFDB.Controllers
                     return BadRequest("Invalid email or password");
                 }
 
-                // Authenticate the user
-                var authenticatedUser = users.FirstOrDefault(u => BCrypt.Net.BCrypt.Verify(user.Password, u.Password));
+                // Authenticate the user without password hashing
+                var authenticatedUser = users.FirstOrDefault(u => u.Password == user.Password);
 
                 if (authenticatedUser != null)
                 {
@@ -80,7 +80,6 @@ namespace MobFDB.Controllers
 
 
 
-
         [HttpPost("register")]
         public async Task<IActionResult> Register(User registerModel)
         {
@@ -89,7 +88,8 @@ namespace MobFDB.Controllers
                 return BadRequest("Email already exists");
             }
 
-            registerModel.Password = BCrypt.Net.BCrypt.HashPassword(registerModel.Password);
+            // Remove password hashing
+            // registerModel.Password = BCrypt.Net.BCrypt.HashPassword(registerModel.Password);
 
             _context.Users.Add(registerModel);
             await _context.SaveChangesAsync();
@@ -98,6 +98,7 @@ namespace MobFDB.Controllers
 
             return Ok(new { token });
         }
+
 
         private async Task<User> GetUser(string email, string password)
         {
