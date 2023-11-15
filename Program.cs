@@ -37,9 +37,22 @@ namespace MobFDB
                        ValidAudience = builder.Configuration["Jwt:Audience"],
                        ValidIssuer = builder.Configuration["Jwt:Issuer"],
                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("Yh2k7QSu4l8CZg5p6X3Pna9L0Miy4D3Bvt0JVr87UcOj69Kqw5R2Nmf4FWs03Hdx")), // Replace with your own secret key
-                       RoleClaimType = ClaimTypes.Role // Ensure that the role claim type is configured
+                    /*   RoleClaimType = ClaimTypes.Role*/ // Ensure that the role claim type is configured
                    };
                });
+
+            // Add CORS policy
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll",
+                    builder =>
+                    {
+                        builder.AllowAnyOrigin()
+                               .AllowAnyHeader()
+                               .AllowAnyMethod();
+                    });
+            });
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -48,16 +61,12 @@ namespace MobFDB
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-            app.UseCors(policy =>
-            {
-                policy.AllowAnyOrigin();
-                policy.AllowAnyHeader();
-                policy.AllowAnyMethod();
-            });
+
+            // Use CORS policy
+            app.UseCors("AllowAll");
 
             app.UseAuthentication();
             app.UseAuthorization();
-          
 
             app.MapControllers();
 
