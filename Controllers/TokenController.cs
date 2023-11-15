@@ -22,31 +22,38 @@ namespace MobFDB.Controllers
             _configuration = config;
             _context = context;
         }
-
         [HttpPost("authenticate")]
-        public async Task<IActionResult> Post(User _userData)
+        public async Task<IActionResult> AuthenticateOrLogin(User user)
         {
-            if (_userData != null && !string.IsNullOrEmpty(_userData.EmailAddress) && !string.IsNullOrEmpty(_userData.Password))
+            if (user != null && !string.IsNullOrEmpty(user.EmailAddress) && !string.IsNullOrEmpty(user.Password))
             {
-                var user = await GetUser(_userData.EmailAddress, _userData.Password);
+                // Check if the user exists based on email
+                var users = await _context.Users.Where(u => u.EmailAddress == user.EmailAddress).ToListAsync();
 
-                if (user != null)
+                if (!users.Any())
                 {
-                    // create claims details based on the user information
-                    var claims = new[]
-                    {
-                        new Claim(JwtRegisteredClaimNames.Sub, _configuration["Jwt:Subject"]),
-                        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                        new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString()),
-                        new Claim("UserId", user.UserId.ToString()),
-                        new Claim("FirstName", user.FirstName),
-                        new Claim("LastName", user.LastName),
-                        new Claim("EmailAddress", user.EmailAddress),
-                        new Claim("MobileNumber", user.MobileNumber),
-                        /*new Claim(ClaimTypes.Role, "User"),*/
-                        new Claim(ClaimTypes.Role,  user.Role) // Include the user's role
-                        // Add other claims as needed
-                    };
+                    return BadRequest("Invalid email or password");
+                }
+
+                // Authenticate the user
+                var authenticatedUser = users.FirstOrDefault(u => BCrypt.Net.BCrypt.Verify(user.Password, u.Password));
+
+                if (authenticatedUser != null)
+                {
+                    // Create claims details based on the user information
+                    var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, _configuration["Jwt:Subject"]),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString()),
+                new Claim("UserId", authenticatedUser.UserId.ToString()),
+                new Claim("FirstName", authenticatedUser.FirstName),
+                new Claim("LastName", authenticatedUser.LastName),
+                new Claim("EmailAddress", authenticatedUser.EmailAddress),
+                new Claim("MobileNumber", authenticatedUser.MobileNumber),
+                new Claim(ClaimTypes.Role, authenticatedUser.Role) // Include the user's role
+                // Add other claims as needed
+            };
 
                     var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
                     var signIn = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -69,27 +76,9 @@ namespace MobFDB.Controllers
                 return BadRequest("Invalid data");
             }
         }
-        [HttpPost("login")]
-        public async Task<IActionResult> Login(string emailAddress, string password)
-        {
-            var users = await _context.Users.Where(u => u.EmailAddress == emailAddress).ToListAsync();
 
-            if (!users.Any())
-            {
-                return BadRequest("Invalid email or password");
-            }
 
-            foreach (var user in users)
-            {
-                if (password == user.Password)
-                {
-                    var token = GenerateJwtToken(user);
-                    return Ok(new { token });
-                }
-            }
 
-            return BadRequest("Invalid email or password");
-        }
 
 
         [HttpPost("register")]

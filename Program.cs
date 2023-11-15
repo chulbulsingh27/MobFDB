@@ -48,16 +48,16 @@ namespace MobFDB
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
-
-           
-            app.UseAuthentication();
-            app.UseAuthorization();
             app.UseCors(policy =>
             {
                 policy.AllowAnyOrigin();
                 policy.AllowAnyHeader();
                 policy.AllowAnyMethod();
             });
+
+            app.UseAuthentication();
+            app.UseAuthorization();
+          
 
             app.MapControllers();
 
