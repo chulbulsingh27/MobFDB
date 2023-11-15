@@ -1,79 +1,86 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis.Scripting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MobFDB.Models;
-using NuGet.Protocol.Plugins;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
 namespace MobFDB.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/token")]
     [ApiController]
-    public class LoginController : ControllerBase
+    public class TokenController : ControllerBase
     {
-
-        private readonly IConfiguration _userService;
+        private readonly IConfiguration _configuration;
         private readonly MobDbContext _context;
 
-        public LoginController(IConfiguration userService, MobDbContext context)
+        public TokenController(IConfiguration config, MobDbContext context)
         {
-            _userService = userService;
+            _configuration = config;
             _context = context;
         }
-        private bool VerifyPassword(Login model, string enteredPassword)
+        [HttpPost("authenticate")]
+        public async Task<IActionResult> AuthenticateOrLogin(User user)
         {
-            if (model.Password == enteredPassword)
-                return true;
-
-            return false;
-        }
-        private User AuthenticateCustomer(Login model)
-        {
-            var user = _context.Users.FirstOrDefault(o => o.EmailAddress == model.EmailAddress);
-            if (user == null || !VerifyPassword(model, user.Password))
+            if (user != null && !string.IsNullOrEmpty(user.EmailAddress) && !string.IsNullOrEmpty(user.Password))
             {
-                return null;
-            }
-            return user;
-        }
-        private string GenerateTokens(User user)
-        {
-            var claims = new[] {
-             new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString()),
+                // Check if the user exists based on email
+                var users = await _context.Users.Where(u => u.EmailAddress == user.EmailAddress).ToListAsync();
+
+                if (!users.Any())
+                {
+                    return BadRequest("Invalid email or password");
+                }
+
+                // Authenticate the user without password hashing
+                var authenticatedUser = users.FirstOrDefault(u => u.Password == user.Password);
+
+                if (authenticatedUser != null)
+                {
+                    // Create claims details based on the user information
+                    var claims = new List<Claim>
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, _configuration["Jwt:Subject"]),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(JwtRegisteredClaimNames.Iat, DateTime.UtcNow.ToString()),
+                new Claim("UserId", authenticatedUser.UserId.ToString()),
+                new Claim("FirstName", authenticatedUser.FirstName),
+                new Claim("LastName", authenticatedUser.LastName),
+                new Claim("EmailAddress", authenticatedUser.EmailAddress),
+                new Claim("MobileNumber", authenticatedUser.MobileNumber),
+                new Claim(ClaimTypes.Role, authenticatedUser.Role) // Include the user's role
+                // Add other claims as needed
             };
-            var securitykey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_userService["Jwt:Key"]));
-            var credentials = new SigningCredentials(securitykey, SecurityAlgorithms.HmacSha256);
-            var token = new JwtSecurityToken(_userService["Jwt:Issuer"], _userService["Jwt:Audience"], claims,
-                expires: DateTime.Now.AddDays(3),
-                signingCredentials: credentials
-                );
-            return new JwtSecurityTokenHandler().WriteToken(token);
-        }
-        [AllowAnonymous]
-        [HttpPost]
-        public IActionResult Login([FromBody] Login model)
-        {
-            IActionResult response = Unauthorized();
-            var user_ = AuthenticateCustomer(model);
-            if (user_ != null)
-            {
-                var token = GenerateTokens(user_);
-                response = Ok(new { EToken = token });
 
+                    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+                    var signIn = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                    var token = new JwtSecurityToken(
+                        _configuration["Jwt:Issuer"],
+                        _configuration["Jwt:Audience"],
+                        claims,
+                        expires: DateTime.UtcNow.AddMinutes(10),
+                        signingCredentials: signIn);
+
+                    return Ok(new JwtSecurityTokenHandler().WriteToken(token));
+                }
+                else
+                {
+                    return BadRequest("Invalid credentials");
+                }
             }
-            return response;
-
+            else
+            {
+                return BadRequest("Invalid data");
+            }
         }
-    }
-}
 
-/*
-[HttpPost("register")]
+
+
+
+        [HttpPost("register")]
         public async Task<IActionResult> Register(User registerModel)
         {
             if (await _context.Users.AnyAsync(u => u.EmailAddress == registerModel.EmailAddress))
@@ -111,7 +118,7 @@ namespace MobFDB.Controllers
                 new Claim("LastName", user.LastName),
                 new Claim("EmailAddress", user.EmailAddress),
                 new Claim("MobileNumber", user.MobileNumber),
-                new Claim(ClaimTypes.Role, "User"),
+                /*new Claim(ClaimTypes.Role, "User"),*/
                 new Claim(ClaimTypes.Role,  user.Role) // Include the user's role
                 // Add other claims as needed
             };
@@ -129,6 +136,6 @@ namespace MobFDB.Controllers
         }
     }
 }
-*/
+
 
 
