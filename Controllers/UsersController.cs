@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MobFDB.Interface;
@@ -14,17 +15,18 @@ namespace MobFDB.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IUserRepository _userRepository;
+      
 
         public UsersController(IUserRepository userRepository)
         {
             _userRepository = userRepository;
+            
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+       /* [Authorize(Roles = "Admin")]*/
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
-            
             var users = await _userRepository.GetUsers();
 
             return Ok(users);
@@ -93,4 +95,3 @@ namespace MobFDB.Controllers
         }
     }
 }
-
